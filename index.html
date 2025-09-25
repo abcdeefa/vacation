@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Face Match Demo</title>
+<style>
+    body {
+        background: #f5f6fa;
+        font-family: 'Segoe UI', Arial, sans-serif;
+        color: #222;
+        margin: 0;
+        padding: 0;
+    }
+    .container {
+        max-width: 900px;
+        margin: 40px auto;
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+        padding: 32px 24px;
+        text-align: center;
+    }
+    h2 {
+        margin-bottom: 24px;
+        font-size: 1.6em;
+        color: #2d98da;
+    }
+
+    /* 웹캠과 결과 이미지를 가로로 배치 */
+    .row {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 40px;
+        margin-bottom: 20px;
+    }
+
+    /* 비율 유지 + 전체 표시 */
+    video, img {
+        width: 320px;
+        height: 240px;
+        object-fit: contain;      /* ✅ 비율 유지 + 여백 허용 */
+        background-color: #eee;   /* 여백 색상 */
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+
+    /* 캡처 버튼은 두 사각형 아래 중앙 */
+    #capture {
+        background: #2d98da;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 14px 28px;
+        font-size: 1.1em;
+        cursor: pointer;
+        transition: background 0.2s;
+        margin-top: 8px;
+    }
+    #capture:hover {
+        background: #3867d6;
+    }
+
+    h3 {
+        margin-top: 28px;
+        font-size: 1.3em;
+        color: #3867d6;
+    }
+    #result {
+        font-size: 1.1em;
+        margin-top: 8px;
+        color: #222f3e;
+    }
+</style>
+</head>
+<body>
+<div class="container">
+    <h2>웹캠 얼굴 → 닮은 사물</h2>
+
+    <!-- 가로 2열: 웹캠 + 결과 -->
+    <div class="row">
+        <video id="video" autoplay></video>
+        <img id="topImage" />
+    </div>
+
+    <!-- 두 박스 아래 클릭 버튼 -->
+    <button id="capture">캡처</button>
+
+    <h3>가장 닮은 사물</h3>
+    <p id="result"></p>
+</div>
+
+<script>
+const video = document.getElementById("video");
+const captureBtn = document.getElementById("capture");
+const resultText = document.getElementById("result");
+const topImage = document.getElementById("topImage");
+
+// 웹캠 실행
+navigator.mediaDevices.getUserMedia({ video: true })
+.then(stream => { video.srcObject = stream; })
+.catch(err => console.error("웹캠 접근 오류:", err));
+
+// 캡처 → FastAPI 서버에 전송
+captureBtn.onclick = async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg"));
+
+    const formData = new FormData();
+    formData.append("file", blob, "capture.jpg");
+
+    try {
+        const res = await fetch("http://127.0.0.1:8000/predict", {
+            method: "POST",
+            body: formData
+        });
+        const data = await res.json();
+        resultText.textContent = data.image_name || "결과 없음";
+        topImage.src = `http://127.0.0.1:8000/image/${data.image_name}`;
+    } catch (err) {
+        console.error("서버 오류:", err);
+        resultText.textContent = "서버와 연결할 수 없습니다.";
+    }
+};
+</script>
+</body>
+</html>
